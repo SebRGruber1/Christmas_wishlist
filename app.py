@@ -31,7 +31,6 @@ def save_data(data):
         json.dump(data, f)
 
 
-
 # Previously this app attempted to scrape images from product URLs using meta tags
 # via the `extract_image` function and external libraries (`requests` and
 # `BeautifulSoup`). With the new design, users provide their own image URLs,
@@ -57,11 +56,10 @@ def wishlist():
 
     - On GET requests, this route reads the existing items from the JSON
       file and renders the combined form/list template.
-    - On POST requests, it reads form data to create a new item. If the
-      user provides an explicit `image_url`, that value is used. If not,
-      the app attempts to extract an image from the provided `link`.
-      New items are appended to the JSON file, and the user is redirected
-      back to the list with a success message.
+    - On POST requests, it reads form data to create a new item.
+      If the user provides an explicit `image_url`, that value is used;
+      otherwise no image URL is stored. New items are appended to the
+      JSON file, and the user is redirected back to the list.
     """
     data = load_data()
     if request.method == "POST":
