@@ -9,10 +9,12 @@
 <body>
 <div class="container mt-4">
     <h1>Christmas Wishlist</h1>
-    {# The flash messages block has been removed to declutter the interface. #}
+    {# Flash messages removed to keep the UI clean #}
 
     <!-- Button to open the add item modal -->
-    <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addItemModal">Add Item</button>
+    <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addItemModal">
+        Add Item
+    </button>
 
     <!-- Add item modal -->
     <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
@@ -27,15 +29,19 @@
           <form method="post">
           <div class="modal-body">
               <div class="form-row">
-                  <div class="form-group col-md-4">
-                      <label for="name_modal">Name</label>
+                  <div class="form-group col-md-3">
+                      <label for="name_modal">Item name</label>
                       <input type="text" class="form-control" id="name_modal" name="name" required>
                   </div>
-                  <div class="form-group col-md-4">
+                  <div class="form-group col-md-3">
+                      <label for="brand">Brand (optional)</label>
+                      <input type="text" class="form-control" id="brand" name="brand">
+                  </div>
+                  <div class="form-group col-md-3">
                       <label for="link_modal">Link (optional)</label>
                       <input type="url" class="form-control" id="link_modal" name="link">
                   </div>
-                  <div class="form-group col-md-4">
+                  <div class="form-group col-md-3">
                       <label for="image_url_modal">Image URL (optional)</label>
                       <input type="url" class="form-control" id="image_url_modal" name="image_url" placeholder="https://example.com/image.jpg">
                   </div>
@@ -71,7 +77,16 @@
                  onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
           {% endif %}
           <div class="card-body d-flex flex-column">
-            <h5 class="card-title">{{ item.brand }} {% if item.brand %}-{% endif %} {{ item.name }}</h5>
+            <!-- Brand as bold first line, name as smaller subtitle if both exist -->
+            <h5 class="card-title mb-1">
+              {{ item.brand or item.name }}
+            </h5>
+            {% if item.brand and item.name %}
+            <p class="card-subtitle text-muted mb-2">
+              {{ item.name }}
+            </p>
+            {% endif %}
+
             <p class="card-text">{{ item.notes }}</p>
             <div class="mt-auto">
               {% if item.link %}

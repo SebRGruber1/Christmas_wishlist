@@ -64,6 +64,7 @@ def wishlist():
     data = load_data()
     if request.method == "POST":
         name = request.form['name']
+        brand = request.form.get('brand', '').strip()
         link = request.form['link']
         notes = request.form['notes']
         image_url = request.form.get('image_url', '').strip()
@@ -74,6 +75,7 @@ def wishlist():
         # Create and store the new item. Purchased defaults to False for the owner.
         data.append({
             "name": name,
+            "brand": brand,
             "link": link,
             "notes": notes,
             "image": image,
