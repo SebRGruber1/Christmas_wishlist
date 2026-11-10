@@ -3,78 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Christmas Wishlist – Shared View</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ owner_name }}'s Christmas Wishlist {{ year }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
 <div class="container mt-4">
-    <h1>Christmas Wishlist</h1>
+    <h1>{{ owner_name }}'s Christmas Wishlist {{ year }}</h1>
     <p class="text-muted">
-        This is the shared view. Items marked as <strong>purchased</strong> are crossed out.
-        Click “Purchased” to claim an item.
+        Found something you'd like to give? Press <strong>I'll get this</strong> so nobody else buys the same thing.
+        Claims don't show on {{ owner_name }}'s own page, so it stays a surprise.
     </p>
 
-    <div class="row">
-      {% for item in items %}
+    {% macro card(item, taken) %}
       <div class="col-md-4 mb-4 d-flex align-items-stretch">
-        <div class="card" style="height: 100%;">
+        <div class="card w-100{% if taken %} bg-light{% endif %}" style="height: 100%;">
           {% if item.link %}
-          <a href="{{ item.link }}" target="_blank">
+          <a href="{{ item.link }}" target="_blank" rel="noopener">
             <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"
+                 alt="{{ item.name }}"{% if taken %} style="opacity: .45;"{% endif %}
                  onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
           </a>
           {% else %}
             <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"
+                 alt="{{ item.name }}"{% if taken %} style="opacity: .45;"{% endif %}
                  onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
           {% endif %}
 
           <div class="card-body d-flex flex-column">
-            {% if not item.purchased %}
-              <!-- Unpurchased: normal brand + name -->
-              <h5 class="card-title mb-1">
-                {{ item.brand or item.name }}
-              </h5>
-              {% if item.brand and item.name %}
-              <p class="card-subtitle text-muted mb-2">
-                {{ item.name }}
-              </p>
-              {% endif %}
-            {% else %}
-              <!-- Purchased: strike-through brand + name -->
-              <h5 class="card-title mb-1">
-                <s>{{ item.brand or item.name }}</s>
-              </h5>
-              {% if item.brand and item.name %}
-              <p class="card-subtitle text-muted mb-2">
-                <s>{{ item.name }}</s>
-              </p>
-              {% endif %}
+            <h5 class="card-title mb-1">
+              {% if taken %}<s>{{ item.brand or item.name }}</s>{% else %}{{ item.brand or item.name }}{% endif %}
+            </h5>
+            {% if item.brand and item.name %}
+            <p class="card-subtitle text-muted mb-2">
+              {% if taken %}<s>{{ item.name }}</s>{% else %}{{ item.name }}{% endif %}
+            </p>
             {% endif %}
 
             <p class="card-text">{{ item.notes }}</p>
 
             <div class="mt-auto">
-              {% if item.link %}
-              <a href="{{ item.link }}" target="_blank" class="btn btn-info btn-sm">View</a>
-              {% endif %}
-
-              {% if not item.purchased %}
-              <a href="/reserve/{{ item.index }}" class="btn btn-success btn-sm">Purchased</a>
+              {% if taken %}
+              <span class="badge badge-secondary mr-1">Someone's getting this</span>
+              <form method="post" action="{{ url_for('unreserve_item', item_id=item.id) }}" class="d-inline"
+                    data-confirm="Only undo this if you were the one who claimed “{{ item.brand or item.name }}”. Make it available again?"
+                    onsubmit="return confirm(this.dataset.confirm);">
+                <button type="submit" class="btn btn-link btn-sm p-0">That was me – undo</button>
+              </form>
               {% else %}
-              <button class="btn btn-secondary btn-sm" disabled>Purchased</button>
-              <a href="/unreserve/{{ item.index }}" class="btn btn-warning btn-sm">Undo</a>
+              {% if item.link %}
+              <a href="{{ item.link }}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm">View in shop</a>
+              {% endif %}
+              <form method="post" action="{{ url_for('reserve_item', item_id=item.id) }}" class="d-inline"
+                    data-confirm="Mark “{{ item.brand or item.name }}” as yours to buy? Others will see it as taken."
+                    onsubmit="return confirm(this.dataset.confirm);">
+                <button type="submit" class="btn btn-success btn-sm">I'll get this</button>
+              </form>
               {% endif %}
             </div>
           </div>
         </div>
       </div>
+    {% endmacro %}
+
+    <h2 class="h5 mt-4 mb-3">Still available ({{ available|length }})</h2>
+    <div class="row">
+      {% for item in available %}
+        {{ card(item, false) }}
+      {% else %}
+      <div class="col-12"><p class="text-muted">Everything on the list has been claimed.</p></div>
       {% endfor %}
     </div>
-</div>
 
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    {% if taken %}
+    <h2 class="h5 mt-4 mb-3">Already taken ({{ taken|length }})</h2>
+    <div class="row">
+      {% for item in taken %}
+        {{ card(item, true) }}
+      {% endfor %}
+    </div>
+    {% endif %}
+</div>
 </body>
 </html>

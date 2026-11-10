@@ -3,18 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Christmas Wishlist</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ owner_name }}'s Christmas Wishlist – Edit</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
 <div class="container mt-4">
-    <h1>Christmas Wishlist</h1>
-    {# Flash messages removed to keep the UI clean #}
+    <h1>{{ owner_name }}'s Christmas Wishlist {{ year }}</h1>
+    <p class="text-muted">
+        This is your private editing page. What's been bought stays hidden here.
+    </p>
 
-    <!-- Button to open the add item modal -->
-    <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addItemModal">
-        Add Item
-    </button>
+    <div class="mb-3 d-flex flex-wrap align-items-center">
+        <!-- Button to open the add item modal -->
+        <button class="btn btn-primary mb-2 mr-2" data-toggle="modal" data-target="#addItemModal">
+            Add Item
+        </button>
+        <button type="button" class="btn btn-outline-secondary mb-2" id="copyShare" data-url="{{ share_url }}">
+            Copy link to share
+        </button>
+        <a href="{{ share_url }}" target="_blank" class="btn btn-link mb-2">Open shared page</a>
+        <form method="post" action="{{ url_for('logout') }}" class="ml-auto mb-2">
+            <button type="submit" class="btn btn-link btn-sm text-muted">Sign out</button>
+        </form>
+    </div>
 
     <!-- Add item modal -->
     <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
@@ -92,16 +104,33 @@
               {% if item.link %}
               <a href="{{ item.link }}" target="_blank" class="btn btn-info btn-sm">View</a>
               {% endif %}
-              <a href="/delete/{{ item.index }}" class="btn btn-danger btn-sm">Remove</a>
+              <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" class="d-inline"
+                    data-confirm="Remove “{{ item.brand or item.name }}” from your list? This cannot be undone."
+                    onsubmit="return confirm(this.dataset.confirm);">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+              </form>
             </div>
           </div>
         </div>
       </div>
+      {% else %}
+      <div class="col-12"><p class="text-muted">Your list is empty. Add your first item above.</p></div>
       {% endfor %}
     </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.getElementById('copyShare').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(btn.dataset.url).then(function () {
+      btn.textContent = 'Link copied';
+      setTimeout(function () { btn.textContent = 'Copy link to share'; }, 2000);
+    }, function () {
+      window.prompt('Copy this link:', btn.dataset.url);
+    });
+  });
+</script>
 </body>
 </html>

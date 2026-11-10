@@ -1,189 +1,253 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import (
+    Flask, render_template, request, redirect, url_for, session, abort, Response
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+from functools import wraps
 import json
 import os
-from datetime import datetime
+import secrets
+import shutil
+import time
+import uuid
+
+
+# Whose list this is. Shown in the page headings.
+OWNER_NAME = "Sebastian"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Everything the app writes lives in data/, which is not tracked by git, so
+# deploying new code can never overwrite the live list.
+DATA_DIR = os.path.join(BASE_DIR, "data")
+FILE_PATH = os.path.join(DATA_DIR, "wishlist.json")
+AUTH_PATH = os.path.join(DATA_DIR, "owner_auth.json")
+SECRET_PATH = os.path.join(DATA_DIR, "secret_key.txt")
+
+# Where the list used to be stored. Older versions used a relative path, so
+# the real file may be in the working directory rather than next to app.py.
+LEGACY_PATHS = [
+    os.path.abspath("wishlist_data.json"),
+    os.path.join(BASE_DIR, "wishlist_data.json"),
+]
+
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def _load_secret_key():
+    """Create a random session key on first run and reuse it afterwards."""
+    if not os.path.exists(SECRET_PATH):
+        with open(SECRET_PATH, "w") as f:
+            f.write(secrets.token_hex(32))
+    with open(SECRET_PATH) as f:
+        return f.read().strip()
 
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+app.secret_key = _load_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=90),
+)
 
-# Path to the JSON file where wishlist items are stored
-FILE_PATH = "wishlist_data.json"
+
+# ---------------------------------------------------------------- storage
+
+def save_data(data):
+    """Write the list to disk via a temp file so a crash can't corrupt it."""
+    tmp = FILE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, FILE_PATH)
 
 
 def load_data():
     """
-    Load the wishlist items from the JSON file. If the file does not exist,
-    return an empty list. Reading the file on each request ensures that
-    updates to the JSON file are reflected immediately in the app.
+    Load the wishlist. On the first run after upgrading, copy the list over
+    from its old location. Every item gets a permanent id so that buttons
+    always act on the item they were shown next to.
     """
-    if os.path.exists(FILE_PATH):
-        with open(FILE_PATH) as f:
-            return json.load(f)
-    return []
+    if not os.path.exists(FILE_PATH):
+        for legacy in LEGACY_PATHS:
+            if os.path.exists(legacy):
+                shutil.copyfile(legacy, FILE_PATH)
+                break
+        else:
+            return []
+
+    with open(FILE_PATH) as f:
+        data = json.load(f)
+
+    changed = False
+    for item in data:
+        if not item.get("id"):
+            item["id"] = uuid.uuid4().hex[:12]
+            changed = True
+    if changed:
+        save_data(data)
+    return data
 
 
-def save_data(data):
+def find_item(data, item_id):
+    for item in data:
+        if item.get("id") == item_id:
+            return item
+    return None
+
+
+# ------------------------------------------------------------------- auth
+
+def password_is_set():
+    return os.path.exists(AUTH_PATH)
+
+
+def owner_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("owner"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
     """
-    Persist the provided list of wishlist items to the JSON file.
+    Owner sign-in. The very first visit asks the owner to choose a password;
+    after that it asks for it. Only a hash of the password is stored.
     """
-    with open(FILE_PATH, "w") as f:
-        json.dump(data, f)
+    setup = not password_is_set()
+    error = None
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if setup:
+            if len(password) < 8:
+                error = "Please choose a password of at least 8 characters."
+            elif password != request.form.get("confirm", ""):
+                error = "The two passwords don't match."
+            else:
+                with open(AUTH_PATH, "w") as f:
+                    json.dump({"hash": generate_password_hash(password)}, f)
+                session.permanent = True
+                session["owner"] = True
+                return redirect(url_for("wishlist"))
+        else:
+            with open(AUTH_PATH) as f:
+                stored = json.load(f)["hash"]
+            if check_password_hash(stored, password):
+                session.permanent = True
+                session["owner"] = True
+                return redirect(url_for("wishlist"))
+            time.sleep(1)  # slow down guessing
+            error = "That password isn't right."
+    return render_template("login.html", setup=setup, error=error)
 
 
-# Previously this app attempted to scrape images from product URLs using meta tags
-# via the `extract_image` function and external libraries (`requests` and
-# `BeautifulSoup`). With the new design, users provide their own image URLs,
-# so no scraping is needed. The image scraping logic and its dependencies
-# have been removed for simplicity.
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("public_view"))
 
+
+# ---------------------------------------------------------------- helpers
 
 @app.context_processor
-def inject_placeholder():
-    """
-    Inject a placeholder image URL into the template context. This function
-    makes the `placeholder_url` variable available in all templates without
-    explicitly passing it when rendering. The placeholder image should
-    reside in the `static` folder of your Flask project.
-    """
-    return {'placeholder_url': url_for('static', filename='placeholder.jpg')}
+def inject_globals():
+    return {
+        "placeholder_url": url_for("static", filename="placeholder.svg"),
+        "owner_name": OWNER_NAME,
+        "year": datetime.now().year,
+    }
 
 
-@app.route('/', methods=["GET", "POST"])
+@app.after_request
+def no_index(response):
+    """Ask search engines not to list any page of this site."""
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+@app.route("/robots.txt")
+def robots():
+    return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
+
+
+# ------------------------------------------------------------ owner pages
+
+@app.route("/", methods=["GET", "POST"])
+@owner_required
 def wishlist():
-    """
-    Handle both displaying the wishlist and adding new items.
-
-    - On GET requests, this route reads the existing items from the JSON
-      file and renders the combined form/list template.
-    - On POST requests, it reads form data to create a new item.
-      If the user provides an explicit `image_url`, that value is used;
-      otherwise no image URL is stored. New items are appended to the
-      JSON file, and the user is redirected back to the list.
-    """
+    """The owner's page: add items and remove them."""
     data = load_data()
     if request.method == "POST":
-        name = request.form['name']
-        brand = request.form.get('brand', '').strip()
-        link = request.form['link']
-        notes = request.form['notes']
-        image_url = request.form.get('image_url', '').strip()
-
-        # Choose the image: manual first, ignore scraping from the link
-        image = image_url or None
-
-        # Create and store the new item. Purchased defaults to False for the owner.
         data.append({
-            "name": name,
-            "brand": brand,
-            "link": link,
-            "notes": notes,
-            "image": image,
+            "id": uuid.uuid4().hex[:12],
+            "name": request.form["name"].strip(),
+            "brand": request.form.get("brand", "").strip(),
+            "link": request.form.get("link", "").strip(),
+            "notes": request.form.get("notes", "").strip(),
+            "image": request.form.get("image_url", "").strip() or None,
             "purchased": False,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
         })
         save_data(data)
-        # Redirect back to the owner view. The new item will appear in the list.
-        return redirect(url_for('wishlist'))
+        return redirect(url_for("wishlist"))
 
-    # Prepare items for display. Each item includes its index so it can be
-    # referenced in the delete URL. We include the purchased flag in case
-    # templates want to use it, but the owner view does not surface it.
-    items = []
-    for idx, item in enumerate(data):
-        items.append({
-            "index": idx,
-            "name": item.get("name", "-"),
-            "brand": item.get("brand", ""),
-            "link": item.get("link", ""),
-            "notes": item.get("notes", ""),
-            "image": item.get("image"),
-            "purchased": item.get("purchased", False)
-        })
-    return render_template("wishlist.html", items=items)
+    share_url = url_for("public_view", _external=True)
+    return render_template("wishlist.html", items=data, share_url=share_url)
 
 
-@app.route('/delete/<int:index>')
-def delete_item(index: int):
-    """
-    Delete the wish list item at the specified index and redirect back to
-    the main list. If the index is out of range, nothing happens.
-    """
+@app.route("/delete/<item_id>", methods=["POST"])
+@owner_required
+def delete_item(item_id):
     data = load_data()
-    if 0 <= index < len(data):
-        data.pop(index)
+    item = find_item(data, item_id)
+    if item:
+        data.remove(item)
         save_data(data)
-    return redirect(url_for('wishlist'))
-
-# Legacy route support: redirect old /wishlist and /add URLs to the main list
-@app.route('/wishlist')
-def wishlist_page():
-    """
-    Preserve the old /wishlist URL by redirecting to the root wishlist.
-    """
-    return redirect(url_for('wishlist'))
-
-@app.route('/add')
-def add_page():
-    """
-    Preserve the old /add URL by redirecting to the root wishlist. The main page
-    contains the form to add items.
-    """
-    return redirect(url_for('wishlist'))
+    return redirect(url_for("wishlist"))
 
 
-@app.route('/public')
+# Old addresses that people may still have bookmarked.
+@app.route("/wishlist")
+@app.route("/add")
+def legacy_redirect():
+    return redirect(url_for("wishlist"))
+
+
+# ----------------------------------------------------------- shared pages
+
+@app.route("/public")
 def public_view():
-    """
-    Public view of the wishlist for friends and family. This route displays
-    all items, grouped by whether they have been marked as purchased. Items
-    that are already reserved are shown crossed out with a disabled button,
-    while unreserved items include a button to reserve them. The owner
-    should share this URL with gift‑givers.
-    """
+    """The page shared with family and friends."""
     data = load_data()
-    items = []
-    for idx, item in enumerate(data):
-        items.append({
-            "index": idx,
-            "name": item.get("name", "-"),
-            "brand": item.get("brand", ""),
-            "link": item.get("link", ""),
-            "notes": item.get("notes", ""),
-            "image": item.get("image"),
-            "purchased": item.get("purchased", False)
-        })
-    return render_template("public_list.html", items=items)
+    available = [i for i in data if not i.get("purchased")]
+    taken = [i for i in data if i.get("purchased")]
+    return render_template("public_list.html", available=available, taken=taken)
 
 
-@app.route('/reserve/<int:index>')
-def reserve_item(index: int):
-    """
-    Mark the specified item as purchased (reserved). Called by gift‑givers
-    via the public view. After reserving the item, redirect back to the
-    public list. If the index is out of range, nothing happens.
-    """
+def _set_purchased(item_id, value):
     data = load_data()
-    if 0 <= index < len(data):
-        data[index]['purchased'] = True
-        save_data(data)
-    return redirect(url_for('public_view'))
+    item = find_item(data, item_id)
+    if item is None:
+        abort(404)
+    item["purchased"] = value
+    save_data(data)
+    return redirect(url_for("public_view"))
 
 
-@app.route('/unreserve/<int:index>')
-def unreserve_item(index: int):
-    """
-    Remove the purchased flag from the specified item. This provides a way
-    for gift‑givers to undo a reservation if they change their mind. After
-    unreserving, redirect back to the public list.
-    """
-    data = load_data()
-    if 0 <= index < len(data):
-        data[index]['purchased'] = False
-        save_data(data)
-    return redirect(url_for('public_view'))
+# These only accept POST (a real button press), so link previews in chat
+# apps and search crawlers can't claim or unclaim gifts by visiting a link.
+@app.route("/reserve/<item_id>", methods=["POST"])
+def reserve_item(item_id):
+    return _set_purchased(item_id, True)
 
 
-if __name__ == '__main__':
-    # Running the app with debug=True enables hot reloading and better error pages
+@app.route("/unreserve/<item_id>", methods=["POST"])
+def unreserve_item(item_id):
+    return _set_purchased(item_id, False)
+
+
+if __name__ == "__main__":
     app.run(debug=True)

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Sign in – Christmas Wishlist</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+<div class="container mt-5" style="max-width: 420px;">
+    <h1 class="h3">{{ owner_name }}'s Christmas Wishlist</h1>
+
+    {% if setup %}
+    <p class="text-muted">Choose a password for editing the list. You'll only be asked for it when you sign in.</p>
+    {% else %}
+    <p class="text-muted">Sign in to edit the list.</p>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+        <div class="form-group">
+            <label for="password">{{ 'New password' if setup else 'Password' }}</label>
+            <input type="password" class="form-control" id="password" name="password"
+                   autocomplete="{{ 'new-password' if setup else 'current-password' }}" required autofocus>
+        </div>
+        {% if setup %}
+        <div class="form-group">
+            <label for="confirm">Repeat password</label>
+            <input type="password" class="form-control" id="confirm" name="confirm"
+                   autocomplete="new-password" required>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-block">
+            {{ 'Save password' if setup else 'Sign in' }}
+        </button>
+    </form>
+
+    <p class="mt-4 mb-0">
+        Here to buy a gift? <a href="{{ url_for('public_view') }}">See the wishlist</a>
+    </p>
+</div>
+</body>
+</html>
