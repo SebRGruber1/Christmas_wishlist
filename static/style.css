@@ -1,0 +1,45 @@
+/* Every picture sits in the same square frame and is scaled to fit inside
+   it without cropping, so tall, wide and small photos all line up. */
+.wish-img-frame {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, .08);
+  border-radius: calc(.25rem - 1px) calc(.25rem - 1px) 0 0;
+  overflow: hidden;
+}
+.wish-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 14px;
+}
+.wish-img.is-taken { opacity: .45; }
+
+.wish-card { height: 100%; }
+.wish-card .card-body { padding: .9rem; }
+.wish-card .card-title { font-size: 1.05rem; }
+.wish-card .card-subtitle,
+.wish-card .card-text { font-size: .9rem; }
+
+/* Keep long names and notes from making one card much taller than the rest */
+.clamp-2, .clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 { -webkit-line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; }
+
+.wish-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+
+.wish-grid { margin-left: -8px; margin-right: -8px; }
+.wish-grid > [class*="col-"] { padding-left: 8px; padding-right: 8px; margin-bottom: 16px; }
+
+@media (max-width: 575.98px) {
+  h1 { font-size: 1.6rem; }
+  .wish-img { padding: 8px; }
+  .wish-card .card-body { padding: .7rem; }
+  .wish-actions .btn { flex: 1 1 100%; }
+}
+.d-contents { display: contents; }

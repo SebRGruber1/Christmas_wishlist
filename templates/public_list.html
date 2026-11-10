@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{{ owner_name }}'s Christmas Wishlist {{ year }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="container mt-4">
@@ -16,36 +17,30 @@
     </p>
 
     {% macro card(item, taken) %}
-      <div class="col-md-4 mb-4 d-flex align-items-stretch">
-        <div class="card w-100{% if taken %} bg-light{% endif %}" style="height: 100%;">
-          {% if item.link %}
-          <a href="{{ item.link }}" target="_blank" rel="noopener">
-            <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"{% if taken %} style="opacity: .45;"{% endif %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="card wish-card{% if taken %} bg-light{% endif %}">
+          {% if item.link %}<a class="wish-img-frame" href="{{ item.link }}" target="_blank" rel="noopener">{% else %}<div class="wish-img-frame">{% endif %}
+            <img src="{{ item.image or placeholder_url }}" class="wish-img{% if taken %} is-taken{% endif %}"
+                 alt="{{ item.name }}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
                  onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
-          </a>
-          {% else %}
-            <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"{% if taken %} style="opacity: .45;"{% endif %}
-                 onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
-          {% endif %}
+          {% if item.link %}</a>{% else %}</div>{% endif %}
 
           <div class="card-body d-flex flex-column">
-            <h5 class="card-title mb-1">
+            <h5 class="card-title mb-1 clamp-2">
               {% if taken %}<s>{{ item.brand or item.name }}</s>{% else %}{{ item.brand or item.name }}{% endif %}
             </h5>
             {% if item.brand and item.name %}
-            <p class="card-subtitle text-muted mb-2">
+            <p class="card-subtitle text-muted mb-2 clamp-2">
               {% if taken %}<s>{{ item.name }}</s>{% else %}{{ item.name }}{% endif %}
             </p>
             {% endif %}
 
-            <p class="card-text">{{ item.notes }}</p>
+            {% if item.notes %}<p class="card-text clamp-3">{{ item.notes }}</p>{% endif %}
 
-            <div class="mt-auto">
+            <div class="mt-auto wish-actions">
               {% if taken %}
-              <span class="badge badge-secondary mr-1">Someone's getting this</span>
-              <form method="post" action="{{ url_for('unreserve_item', item_id=item.id) }}" class="d-inline"
+              <span class="badge badge-secondary">Someone's getting this</span>
+              <form method="post" action="{{ url_for('unreserve_item', item_id=item.id) }}"
                     data-confirm="Only undo this if you were the one who claimed “{{ item.brand or item.name }}”. Make it available again?"
                     onsubmit="return confirm(this.dataset.confirm);">
                 <button type="submit" class="btn btn-link btn-sm p-0">That was me – undo</button>
@@ -54,7 +49,7 @@
               {% if item.link %}
               <a href="{{ item.link }}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm">View in shop</a>
               {% endif %}
-              <form method="post" action="{{ url_for('reserve_item', item_id=item.id) }}" class="d-inline"
+              <form method="post" action="{{ url_for('reserve_item', item_id=item.id) }}" class="d-contents"
                     data-confirm="Mark “{{ item.brand or item.name }}” as yours to buy? Others will see it as taken."
                     onsubmit="return confirm(this.dataset.confirm);">
                 <button type="submit" class="btn btn-success btn-sm">I'll get this</button>
@@ -67,7 +62,7 @@
     {% endmacro %}
 
     <h2 class="h5 mt-4 mb-3">Still available ({{ available|length }})</h2>
-    <div class="row">
+    <div class="row wish-grid">
       {% for item in available %}
         {{ card(item, false) }}
       {% else %}
@@ -77,7 +72,7 @@
 
     {% if taken %}
     <h2 class="h5 mt-4 mb-3">Already taken ({{ taken|length }})</h2>
-    <div class="row">
+    <div class="row wish-grid">
       {% for item in taken %}
         {{ card(item, true) }}
       {% endfor %}

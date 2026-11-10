@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{{ owner_name }}'s Christmas Wishlist – Edit</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="container mt-4">
@@ -73,41 +74,30 @@
     </div>
 
     <!-- Wishlist items -->
-    <div class="row">
+    <div class="row wish-grid">
       {% for item in items %}
-      <div class="col-md-4 mb-4 d-flex align-items-stretch">
-        <div class="card" style="height: 100%;">
-          {% if item.link %}
-          <a href="{{ item.link }}" target="_blank">
-            <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="card wish-card">
+          {% if item.link %}<a class="wish-img-frame" href="{{ item.link }}" target="_blank" rel="noopener">{% else %}<div class="wish-img-frame">{% endif %}
+            <img src="{{ item.image or placeholder_url }}" class="wish-img"
+                 alt="{{ item.name }}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
                  onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
-          </a>
-          {% else %}
-            <img src="{{ item.image or placeholder_url }}" class="card-img-top"
-                 alt="{{ item.name }}"
-                 onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
-          {% endif %}
+          {% if item.link %}</a>{% else %}</div>{% endif %}
           <div class="card-body d-flex flex-column">
             <!-- Brand as bold first line, name as smaller subtitle if both exist -->
-            <h5 class="card-title mb-1">
-              {{ item.brand or item.name }}
-            </h5>
+            <h5 class="card-title mb-1 clamp-2">{{ item.brand or item.name }}</h5>
             {% if item.brand and item.name %}
-            <p class="card-subtitle text-muted mb-2">
-              {{ item.name }}
-            </p>
+            <p class="card-subtitle text-muted mb-2 clamp-2">{{ item.name }}</p>
             {% endif %}
-
-            <p class="card-text">{{ item.notes }}</p>
-            <div class="mt-auto">
+            {% if item.notes %}<p class="card-text clamp-3">{{ item.notes }}</p>{% endif %}
+            <div class="mt-auto wish-actions">
               {% if item.link %}
-              <a href="{{ item.link }}" target="_blank" class="btn btn-info btn-sm">View</a>
+              <a href="{{ item.link }}" target="_blank" rel="noopener" class="btn btn-outline-info btn-sm">View</a>
               {% endif %}
-              <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" class="d-inline"
+              <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" class="d-contents"
                     data-confirm="Remove “{{ item.brand or item.name }}” from your list? This cannot be undone."
                     onsubmit="return confirm(this.dataset.confirm);">
-                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
               </form>
             </div>
           </div>
