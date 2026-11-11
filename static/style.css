@@ -14,6 +14,13 @@
   object-fit: contain;
   padding: 14px;
 }
+/* Photos that have their own background fill the frame edge to edge;
+   cut-outs on white (and very tall or wide pictures) are shown whole.
+   fit.js decides which by looking at each picture's border. */
+.wish-img.is-cover { object-fit: cover; padding: 0; }
+.js .wish-img { opacity: 0; transition: opacity .2s; }
+.js .wish-img.is-ready { opacity: 1; }
+.js .wish-img.is-ready.is-taken { opacity: .45; }
 .wish-img.is-taken { opacity: .45; }
 
 .wish-card { height: 100%; }
@@ -40,6 +47,32 @@
   h1 { font-size: 1.6rem; }
   .wish-img { padding: 8px; }
   .wish-card .card-body { padding: .7rem; }
-  .wish-actions .btn { flex: 1 1 100%; }
+  .wish-actions { flex-wrap: nowrap; gap: .3rem; }
+  .wish-actions .btn { flex: 0 0 auto; padding: .25rem .45rem; font-size: .8rem; white-space: nowrap; }
+  .wish-actions form .btn, .wish-actions > .btn-success { flex: 1 1 auto; }
+  .wish-actions:has(.badge) { flex-wrap: wrap; }
 }
 .d-contents { display: contents; }
+
+/* ---- Owner page: add form and bookmarks-bar button ---- */
+.quick-add summary { cursor: pointer; color: #007bff; font-size: .95rem; }
+.quick-add-body { margin-top: .6rem; padding: .8rem 1rem; background: #f8f9fa; border-radius: .3rem; }
+#bookmarklet { cursor: grab; }
+
+.pic-drop {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 2px dashed #ced4da;
+  border-radius: .3rem;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  outline: 0;
+}
+.pic-drop:focus, .pic-drop.is-over { border-color: #007bff; background: #f1f7ff; }
+.pic-drop img { width: 100%; height: 100%; object-fit: contain; }
+.pic-empty { text-align: center; color: #6c757d; font-size: .85rem; padding: .5rem; }
+.pic-empty strong, .pic-empty span { display: block; }
+@media (max-width: 767.98px) { .pic-drop { max-width: 220px; } }

@@ -22,6 +22,7 @@
     {% endif %}
 
     <form method="post">
+        <input type="hidden" name="next" value="{{ next_url }}">
         <div class="form-group">
             <label for="password">{{ 'New password' if setup else 'Password' }}</label>
             <input type="password" class="form-control" id="password" name="password"

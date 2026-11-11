@@ -1,5 +1,6 @@
 from flask import (
-    Flask, render_template, request, redirect, url_for, session, abort, Response
+    Flask, render_template, request, redirect, url_for, session, abort, Response,
+    send_from_directory
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -23,6 +24,8 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 FILE_PATH = os.path.join(DATA_DIR, "wishlist.json")
 AUTH_PATH = os.path.join(DATA_DIR, "owner_auth.json")
 SECRET_PATH = os.path.join(DATA_DIR, "secret_key.txt")
+# Photos the owner uploads. Kept with the data so deploys never touch them.
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 
 # Where the list used to be stored. Older versions used a relative path, so
 # the real file may be in the working directory rather than next to app.py.
@@ -31,7 +34,7 @@ LEGACY_PATHS = [
     os.path.join(BASE_DIR, "wishlist_data.json"),
 ]
 
-os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def _load_secret_key():
@@ -49,6 +52,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(days=90),
+    MAX_CONTENT_LENGTH=8 * 1024 * 1024,  # largest upload accepted: 8 MB
 )
 
 
@@ -96,6 +100,54 @@ def find_item(data, item_id):
     return None
 
 
+# ---------------------------------------------------------------- uploads
+
+# Recognise real image files by their first bytes rather than trusting the
+# file name. Maps signature -> extension.
+IMAGE_SIGNATURES = [
+    (b"\xff\xd8\xff", "jpg"),
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"GIF87a", "gif"),
+    (b"GIF89a", "gif"),
+]
+
+
+def save_upload(file_storage):
+    """
+    Save an uploaded photo and return the address to show it from, or None
+    if nothing usable was uploaded.
+    """
+    if not file_storage or not file_storage.filename:
+        return None
+    head = file_storage.stream.read(16)
+    file_storage.stream.seek(0)
+    ext = None
+    for signature, extension in IMAGE_SIGNATURES:
+        if head.startswith(signature):
+            ext = extension
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        ext = "webp"
+    if ext is None:
+        return None
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    file_storage.save(os.path.join(UPLOAD_DIR, filename))
+    return url_for("uploaded_file", filename=filename)
+
+
+def delete_upload(image):
+    """Remove an item's uploaded photo from disk, if it has one."""
+    prefix = "/uploads/"
+    if image and image.startswith(prefix):
+        path = os.path.join(UPLOAD_DIR, os.path.basename(image[len(prefix):]))
+        if os.path.exists(path):
+            os.remove(path)
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_DIR, filename, max_age=60 * 60 * 24 * 30)
+
+
 # ------------------------------------------------------------------- auth
 
 def password_is_set():
@@ -106,7 +158,8 @@ def owner_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if not session.get("owner"):
-            return redirect(url_for("login"))
+            target = request.full_path if request.method == "GET" else None
+            return redirect(url_for("login", next=target))
         return view(*args, **kwargs)
     return wrapped
 
@@ -119,6 +172,10 @@ def login():
     """
     setup = not password_is_set()
     error = None
+    # Only ever send people back to a page on this site.
+    next_url = request.values.get("next", "")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("wishlist")
     if request.method == "POST":
         password = request.form.get("password", "")
         if setup:
@@ -131,17 +188,17 @@ def login():
                     json.dump({"hash": generate_password_hash(password)}, f)
                 session.permanent = True
                 session["owner"] = True
-                return redirect(url_for("wishlist"))
+                return redirect(next_url)
         else:
             with open(AUTH_PATH) as f:
                 stored = json.load(f)["hash"]
             if check_password_hash(stored, password):
                 session.permanent = True
                 session["owner"] = True
-                return redirect(url_for("wishlist"))
+                return redirect(next_url)
             time.sleep(1)  # slow down guessing
             error = "That password isn't right."
-    return render_template("login.html", setup=setup, error=error)
+    return render_template("login.html", setup=setup, error=error, next_url=next_url)
 
 
 @app.route("/logout", methods=["POST"])
@@ -187,15 +244,16 @@ def wishlist():
             "brand": request.form.get("brand", "").strip(),
             "link": request.form.get("link", "").strip(),
             "notes": request.form.get("notes", "").strip(),
-            "image": request.form.get("image_url", "").strip() or None,
+            # An uploaded photo wins over a pasted picture address.
+            "image": save_upload(request.files.get("image_file"))
+                     or request.form.get("image_url", "").strip() or None,
             "purchased": False,
             "created_at": datetime.now().isoformat(),
         })
         save_data(data)
         return redirect(url_for("wishlist"))
 
-    share_url = url_for("public_view", _external=True)
-    return render_template("wishlist.html", items=data, share_url=share_url)
+    return render_template("wishlist.html", items=data)
 
 
 @app.route("/delete/<item_id>", methods=["POST"])
@@ -206,6 +264,7 @@ def delete_item(item_id):
     if item:
         data.remove(item)
         save_data(data)
+        delete_upload(item.get("image"))
     return redirect(url_for("wishlist"))
 
 

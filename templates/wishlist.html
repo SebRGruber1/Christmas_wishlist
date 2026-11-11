@@ -7,6 +7,7 @@
     <title>{{ owner_name }}'s Christmas Wishlist – Edit</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>document.documentElement.className += ' js';</script>
 </head>
 <body>
 <div class="container mt-4">
@@ -16,18 +17,34 @@
     </p>
 
     <div class="mb-3 d-flex flex-wrap align-items-center">
-        <!-- Button to open the add item modal -->
         <button class="btn btn-primary mb-2 mr-2" data-toggle="modal" data-target="#addItemModal">
             Add Item
         </button>
-        <button type="button" class="btn btn-outline-secondary mb-2" id="copyShare" data-url="{{ share_url }}">
+        <button type="button" class="btn btn-outline-secondary mb-2" id="copyShare">
             Copy link to share
         </button>
-        <a href="{{ share_url }}" target="_blank" class="btn btn-link mb-2">Open shared page</a>
+        <a href="{{ url_for('public_view') }}" target="_blank" class="btn btn-link mb-2">Open shared page</a>
         <form method="post" action="{{ url_for('logout') }}" class="ml-auto mb-2">
             <button type="submit" class="btn btn-link btn-sm text-muted">Sign out</button>
         </form>
     </div>
+
+    <!-- One-click button for the bookmarks bar -->
+    <details class="quick-add mb-4">
+        <summary>Add items straight from a shop's page</summary>
+        <div class="quick-add-body">
+            <p class="mb-2">
+                Drag this button to your browser's bookmarks bar:
+                <a id="bookmarklet" class="btn btn-sm btn-outline-primary ml-1" href="#"
+                   title="Drag me to your bookmarks bar">＋ Add to wishlist</a>
+            </p>
+            <p class="text-muted small mb-0">
+                Then, on any product page, click it. This page opens with the name, link and
+                picture already filled in, ready for you to check and save.
+                (If the bookmarks bar is hidden, show it with Ctrl+Shift+B, or Cmd+Shift+B on a Mac.)
+            </p>
+        </div>
+    </details>
 
     <!-- Add item modal -->
     <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
@@ -39,30 +56,51 @@
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
-          <form method="post">
+          <form method="post" enctype="multipart/form-data" id="addForm">
           <div class="modal-body">
-              <div class="form-row">
-                  <div class="form-group col-md-3">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="form-row">
+                  <div class="form-group col-sm-5">
                     <label for="brand">Brand</label>
                     <input type="text" class="form-control" id="brand" name="brand">
-                  </div>  
-                  <div class="form-group col-md-3">
-                      <label for="name_modal">Item name</label>
-                      <input type="text" class="form-control" id="name_modal" name="name" required>
                   </div>
-                  <div class="form-group col-md-3">
-                      <label for="link_modal">Link</label>
-                      <input type="url" class="form-control" id="link_modal" name="link">
+                  <div class="form-group col-sm-7">
+                    <label for="name_modal">Item name</label>
+                    <input type="text" class="form-control" id="name_modal" name="name" required>
                   </div>
-                  <div class="form-group col-md-3">
-                      <label for="image_url_modal">Image URL (optional)</label>
-                      <input type="url" class="form-control" id="image_url_modal" name="image_url" placeholder="https://example.com/image.jpg">
-                  </div>
-              </div>
-              <div class="form-group">
-                  <label for="notes_modal">Notes (optional)</label>
+                </div>
+                <div class="form-group">
+                  <label for="link_modal">Link to the shop page</label>
+                  <input type="url" class="form-control" id="link_modal" name="link" placeholder="https://…">
+                </div>
+                <div class="form-group">
+                  <label for="notes_modal">Notes <span class="text-muted">(size, colour… optional)</span></label>
                   <textarea class="form-control" id="notes_modal" name="notes" rows="2"></textarea>
+                </div>
               </div>
+
+              <div class="col-md-4">
+                <label>Picture <span class="text-muted">(optional)</span></label>
+                <div class="pic-drop" id="picDrop" tabindex="0">
+                  <img id="picPreview" alt="" hidden>
+                  <div id="picEmpty" class="pic-empty">
+                    <strong>Drop or paste a picture</strong>
+                    <span>or use the options below</span>
+                  </div>
+                </div>
+                <div id="picStatus" class="small mt-1 text-muted" aria-live="polite"></div>
+                <div class="d-flex flex-wrap mt-2" style="gap:.4rem">
+                  <label class="btn btn-outline-secondary btn-sm mb-0" for="image_file">Choose photo…</label>
+                  <button type="button" class="btn btn-link btn-sm p-0" id="picClear" hidden>Remove picture</button>
+                </div>
+                <input type="file" id="image_file" name="image_file" accept="image/*" class="sr-only">
+                <div class="form-group mt-2 mb-0">
+                  <label for="image_url_modal" class="small text-muted mb-1">…or paste a picture's web address</label>
+                  <input type="url" class="form-control form-control-sm" id="image_url_modal" name="image_url" placeholder="https://example.com/image.jpg">
+                </div>
+              </div>
+            </div>
           </div>
           <div class="modal-footer">
               <button type="submit" class="btn btn-primary">Add Item</button>
@@ -81,7 +119,7 @@
           {% if item.link %}<a class="wish-img-frame" href="{{ item.link }}" target="_blank" rel="noopener">{% else %}<div class="wish-img-frame">{% endif %}
             <img src="{{ item.image or placeholder_url }}" class="wish-img"
                  alt="{{ item.name }}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
-                 onerror="this.onerror=null; this.src='{{ placeholder_url }}';">
+                 crossorigin="anonymous" data-placeholder="{{ placeholder_url }}">
           {% if item.link %}</a>{% else %}</div>{% endif %}
           <div class="card-body d-flex flex-column">
             <!-- Brand as bold first line, name as smaller subtitle if both exist -->
@@ -111,16 +149,7 @@
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  document.getElementById('copyShare').addEventListener('click', function () {
-    var btn = this;
-    navigator.clipboard.writeText(btn.dataset.url).then(function () {
-      btn.textContent = 'Link copied';
-      setTimeout(function () { btn.textContent = 'Copy link to share'; }, 2000);
-    }, function () {
-      window.prompt('Copy this link:', btn.dataset.url);
-    });
-  });
-</script>
+<script src="{{ url_for('static', filename='owner.js') }}"></script>
+<script src="{{ url_for('static', filename='fit.js') }}"></script>
 </body>
 </html>
