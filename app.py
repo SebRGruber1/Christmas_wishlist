@@ -253,7 +253,8 @@ def wishlist():
         save_data(data)
         return redirect(url_for("wishlist"))
 
-    return render_template("wishlist.html", items=data)
+    # Items are stored in the order they were added; show the newest first.
+    return render_template("wishlist.html", items=list(reversed(data)))
 
 
 @app.route("/delete/<item_id>", methods=["POST"])
@@ -280,7 +281,7 @@ def legacy_redirect():
 @app.route("/public")
 def public_view():
     """The page shared with family and friends."""
-    data = load_data()
+    data = list(reversed(load_data()))  # newest first
     available = [i for i in data if not i.get("purchased")]
     taken = [i for i in data if i.get("purchased")]
     return render_template("public_list.html", available=available, taken=taken)
