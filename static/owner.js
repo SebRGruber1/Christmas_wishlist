@@ -147,7 +147,48 @@
   fileInput.addEventListener('change', function () { if (fileInput.files[0]) usePhoto(fileInput.files[0]); });
   urlInput.addEventListener('change', useAddress);
   urlInput.addEventListener('paste', function () { setTimeout(useAddress, 0); });
-  clearBtn.addEventListener('click', function () { setFile(null); urlInput.value = ''; show(''); });
+  var imageAction = document.getElementById('image_action');
+  clearBtn.addEventListener('click', function () {
+    setFile(null); urlInput.value = ''; show('');
+    imageAction.value = 'clear';
+  });
+
+  // ------------------------------------------------------ add / edit mode
+  var modal = window.jQuery('#addItemModal');
+  var title = document.getElementById('addItemModalLabel');
+  var submit = document.getElementById('addSubmit');
+  var addAction = form.getAttribute('action');
+
+  function resetForm() {
+    form.reset();
+    setFile(null);
+    show('');
+    imageAction.value = 'keep';
+    form.setAttribute('action', addAction);
+    title.textContent = 'Add a new item';
+    submit.textContent = 'Add Item';
+  }
+
+  [].forEach.call(document.querySelectorAll('.js-edit'), function (btn) {
+    btn.addEventListener('click', function () {
+      resetForm();
+      var v = btn.dataset;
+      form.setAttribute('action', v.action);
+      title.textContent = 'Edit item';
+      submit.textContent = 'Save changes';
+      document.getElementById('brand').value = v.brand;
+      document.getElementById('name_modal').value = v.name;
+      document.getElementById('link_modal').value = v.link;
+      document.getElementById('notes_modal').value = v.notes;
+      if (v.image) {
+        // Show the current picture. Leaving the address box empty keeps it.
+        show(v.image, 'Current picture. Choose, drop or paste another to replace it.');
+      }
+      modal.modal('show');
+    });
+  });
+  // Opening with the Add Item button always starts a blank form.
+  document.querySelector('[data-target="#addItemModal"]').addEventListener('click', resetForm);
 
   ['dragenter', 'dragover'].forEach(function (t) {
     drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('is-over'); });

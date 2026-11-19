@@ -235,7 +235,7 @@ def robots():
 @app.route("/", methods=["GET", "POST"])
 @owner_required
 def wishlist():
-    """The owner's page: add items and remove them."""
+    """The owner's page: add, edit and remove items."""
     data = load_data()
     if request.method == "POST":
         data.append({
@@ -255,6 +255,39 @@ def wishlist():
 
     # Items are stored in the order they were added; show the newest first.
     return render_template("wishlist.html", items=list(reversed(data)))
+
+
+@app.route("/edit/<item_id>", methods=["POST"])
+@owner_required
+def edit_item(item_id):
+    """
+    Update an item's details. Whether someone has claimed it is left alone,
+    so fixing a typo never undoes a claim.
+    """
+    data = load_data()
+    item = find_item(data, item_id)
+    if item is None:
+        abort(404)
+    item["name"] = request.form["name"].strip()
+    item["brand"] = request.form.get("brand", "").strip()
+    item["link"] = request.form.get("link", "").strip()
+    item["notes"] = request.form.get("notes", "").strip()
+
+    # Picture: a new upload or a new address replaces the old one; "clear"
+    # removes it; otherwise the current picture is kept.
+    old_image = item.get("image")
+    new_image = save_upload(request.files.get("image_file")) \
+        or request.form.get("image_url", "").strip()
+    if new_image:
+        item["image"] = new_image
+    elif request.form.get("image_action") == "clear":
+        item["image"] = None
+    if item.get("image") != old_image:
+        delete_upload(old_image)
+
+    item["updated_at"] = datetime.now().isoformat()
+    save_data(data)
+    return redirect(url_for("wishlist"))
 
 
 @app.route("/delete/<item_id>", methods=["POST"])
