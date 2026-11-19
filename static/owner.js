@@ -22,6 +22,13 @@
   function onShopPage(ORIGIN) {
     var d = document;
     function meta(sel) { var e = d.querySelector(sel); return (e && e.content) || ''; }
+    // Some shops leave unfilled template code in their product data, such as
+    // "product.vendor" or "{{ product.title }}". Treat those as missing.
+    function real(v) {
+      v = typeof v === 'string' ? v.trim() : '';
+      if (!v || /[{}%]/.test(v) || /^[a-z_]+(\.[a-z_]+)+$/.test(v)) return '';
+      return v;
+    }
     var img = '', brand = '', pname = '';
     // 1. Structured product data, when the shop provides it
     [].forEach.call(d.querySelectorAll('script[type="application/ld+json"]'), function (s) {
@@ -31,8 +38,8 @@
           if (!o || [].concat(o['@type']).indexOf('Product') < 0) return;
           var i = [].concat(o.image || [])[0];
           if (!img && i) img = i.url || i;
-          if (!pname && typeof o.name === 'string') pname = o.name;
-          if (!brand && o.brand) brand = o.brand.name || (typeof o.brand === 'string' ? o.brand : '');
+          if (!pname) pname = real(o.name);
+          if (!brand && o.brand) brand = real(o.brand.name || o.brand);
         });
       } catch (e) {}
     });
@@ -47,7 +54,7 @@
       });
     }
     try { img = new URL(img, location.href).href; } catch (e) { img = ''; }
-    var site = meta('meta[property="og:site_name"]') || location.hostname.replace(/^www\./, '');
+    var site = real(meta('meta[property="og:site_name"]')) || location.hostname.replace(/^www\./, '');
     // Page titles look like "Brand | Product | Shop": keep the longest part.
     var name = (pname || meta('meta[property="og:title"]') || d.title).split(/ [|–—:] /)
       .sort(function (a, b) { return b.length - a.length; })[0];
